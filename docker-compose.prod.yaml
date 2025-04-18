@@ -1,0 +1,105 @@
+services:
+
+  nginx:
+    build: ./compose/production/nginx
+    volumes:
+      - staticfiles:/app/staticfiles
+      - mediafiles:/app/mediafiles
+    ports:
+      - 80:80
+      - 5555:5555
+      - 15672:15672
+    depends_on:
+      - web
+      - flower
+
+  web:
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+    image: django_template:prod
+    command: /start.sh
+    volumes:
+      - staticfiles:/app/staticfiles
+      - mediafiles:/app/mediafiles
+    env_file:
+      - ./envs/.prod-sample
+    depends_on:
+      - rabbitmq
+      - redis
+      - db
+
+  db:
+    image: postgres:17-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=hello_django
+      - POSTGRES_USER=hello_django
+      - POSTGRES_PASSWORD=hello_django
+
+  redis:
+    image: redis:7-alpine
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    env_file:
+      - ./envs/.prod-sample
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+    image: django_template:prod
+    entrypoint: /celery-entrypoint.sh
+    command: /start-celeryworker.sh
+    volumes:
+      - staticfiles:/app/staticfiles
+      - mediafiles:/app/mediafiles
+    env_file:
+      - ./envs/.prod-sample
+    depends_on:
+      - redis
+      - rabbitmq
+      - db
+      - web
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+    image: django_template:prod
+    entrypoint: /celery-entrypoint.sh
+    command: /start-celerybeat.sh
+    volumes:
+      - staticfiles:/app/staticfiles
+      - mediafiles:/app/mediafiles
+    env_file:
+      - ./envs/.prod-sample
+    depends_on:
+      - redis
+      - rabbitmq
+      - db
+      - web
+
+  flower:
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+    image: django_celery_example_celery_flower
+    command: /start-flower.sh
+    volumes:
+      - staticfiles:/app/staticfiles
+      - mediafiles:/app/mediafiles
+    env_file:
+      - ./envs/.prod-sample
+    depends_on:
+      - redis
+      - db
+      - rabbitmq
+
+
+volumes:
+  postgres_data:
+  staticfiles:
+  mediafiles:

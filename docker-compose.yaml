@@ -1,0 +1,94 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_web
+    command: /start.sh
+    volumes:
+      - .:/app
+    ports:
+      - "8010:8000"
+    env_file:
+      - ./envs/.dev-sample
+    depends_on:
+      - redis
+      - db
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=hello_django
+      - POSTGRES_USER=hello_django
+      - POSTGRES_PASSWORD=hello_django
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  redis:
+    image: redis:7-alpine
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_worker
+    entrypoint: /celery-entrypoint.sh
+    command: /start-celeryworker.sh
+    volumes:
+      - .:/app
+    env_file:
+      - ./envs/.dev-sample
+    depends_on:
+      - redis
+      - db
+      - web
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_beat
+    entrypoint: /celery-entrypoint.sh
+    command: /start-celerybeat.sh
+    volumes:
+      - .:/app
+    env_file:
+      - ./envs/.dev-sample
+    depends_on:
+      - redis
+      - db
+      - web
+
+  flower:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: django_celery_flower
+    command: /start-flower.sh
+    volumes:
+      - .:/app
+    env_file:
+      - ./envs/.dev-sample
+    ports:
+      - "5557:5555"
+    depends_on:
+      - redis
+      - db
+
+volumes:
+  postgres_data:
+  pgadmin_data:
